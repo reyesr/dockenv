@@ -8,6 +8,9 @@
   },
   "author": "rodrigo <reyes.rr@gmail.com> (https://github.com/reyesr)",
   "license": "ISC",
+  "bin": {
+    "dockenv": "bin/dockenv"
+  },
   "dependencies": {
     "dockerlib": "0.0.3",
     "extend": "^2.0.0",
