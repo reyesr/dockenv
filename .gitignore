@@ -26,3 +26,9 @@ node_modules
 
 # Users Environment Variables
 .lock-wscript
+
+# for IntelliJ
+# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm
+*.iml
+## Directory-based project format:
+.idea/
