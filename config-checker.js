@@ -13,7 +13,6 @@ var Constraint = {
     }
 };
 
-
 var SectionTypeEnum = {
     ALL: "]ALL",
     GLOBAL: "]GLOBALS",
@@ -178,6 +177,8 @@ function checkConstraints(result, configObject, constraints, subsection) {
             result.warnings.push(MessageEnum.mkMessage(MessageEnum.UNKNOWN_KEY, key, subsection));
         }
     });
+    
+    
 }
 
 ConfigChecker.prototype.verify = function(config) {

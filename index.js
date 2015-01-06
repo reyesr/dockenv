@@ -69,4 +69,6 @@ try {
     } else {
         console.error(e.message);
     }
+    console.log("Installation failed.");
+    process.exit(99);
 }

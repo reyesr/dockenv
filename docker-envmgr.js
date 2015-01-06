@@ -1,3 +1,4 @@
+
 var checker = require("./config-checker"),
     dockerlib = require("dockerlib"),
     mkdirp = require("mkdirp"),
@@ -7,18 +8,39 @@ var checker = require("./config-checker"),
 var constraints  = new checker.ConfigChecker();
 constraints.addGlobalSection("exposedPortNeedMacAddress", []);
 
-constraints.addGlobalSection("exposedPortNeedMacAddress", [checker.ConstraintEnum.OPTIONAL])
-    .addGlobalSection("registry-url", [checker.ConstraintEnum.OPTIONAL])
-    .addGlobalSection("autocreate-volumes-mountpoints", [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.BOOLEAN])
-    .addGlobalSection("registry-domain", [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.STRING])
-    .addGlobalSection("registry-user", [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.STRING])
-    .addSubSections("image", [checker.ConstraintEnum.MANDATORY, checker.ConstraintEnum.TYPE.STRING ])
-    .addSubSections("image-tag", [checker.ConstraintEnum.MANDATORY, checker.ConstraintEnum.TYPE.STRING ])
-    .addSubSections("name", [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.STRING ])
-    .addSubSections("ports", [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
-    .addSubSections("links", [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
-    .addSubSections("volumes", [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
-    .addSubSections("mac-address", [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.STRING]);
+var ENTRY_NAMES = {
+    EXPOSED_PORT_NEED_MAC_ADDRESS: "exposedPortNeedMacAddress",
+    REGISTRY_URL: "registry-url",
+    AUTOCREATE_VOLUME_MOUNTPOINTS: "autocreate-volumes-mountpoints",
+    REGISTRY_DOMAIN: "registry-domain",
+    REGISTRY_USER: "registry-user",
+    
+    CONTAINER_IMAGE: "image",
+    CONTAINER_IMAGE_TAG: "image-tag",
+    CONTAINER_NAME: "name",
+    CONTAINER_PORTS: "ports",
+    CONTAINER_LINKS: "links",
+    CONTAINER_VOLUMES: "volumes",
+    CONTAINER_MAC_ADDRESS: "mac-address"
+};
+
+constraints
+    .addGlobalSection(ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS, [checker.ConstraintEnum.OPTIONAL])
+    .addGlobalSection(ENTRY_NAMES.REGISTRY_URL, [checker.ConstraintEnum.OPTIONAL])
+    .addGlobalSection(ENTRY_NAMES.AUTOCREATE_VOLUME_MOUNTPOINTS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.BOOLEAN])
+    .addGlobalSection(ENTRY_NAMES.REGISTRY_DOMAIN, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.STRING])
+    .addGlobalSection(ENTRY_NAMES.REGISTRY_USER, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.STRING])
+    
+    .addSubSections(ENTRY_NAMES.CONTAINER_IMAGE, [checker.ConstraintEnum.MANDATORY, checker.ConstraintEnum.TYPE.STRING ])
+    .addSubSections(ENTRY_NAMES.CONTAINER_IMAGE_TAG, [checker.ConstraintEnum.MANDATORY, checker.ConstraintEnum.TYPE.STRING ])
+    .addSubSections(ENTRY_NAMES.CONTAINER_NAME, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.STRING ])
+    .addSubSections(ENTRY_NAMES.CONTAINER_PORTS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
+    .addSubSections(ENTRY_NAMES.CONTAINER_LINKS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
+    .addSubSections(ENTRY_NAMES.CONTAINER_VOLUMES, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
+    .addSubSections(ENTRY_NAMES.CONTAINER_MAC_ADDRESS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.STRING])
+    ;
+
+var MAC_ADDRESS_REGEX = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
 
 function Link(descriptor) {
     if (!(this instanceof  Link)) {
@@ -115,6 +137,8 @@ Manager.prototype.verify = function() {
 Manager.prototype.checkInstallation = function() {
     var errors = [];
     var self = this;
+    
+    // Check that every mountpoint exists. Create it if required by the configuration.
     this.containers.forEach(function(container) {
         container.volumes.forEach(function(volumeObject) {
             if (fs.existsSync(volumeObject.hostMountPoint) == false) {
@@ -126,6 +150,20 @@ Manager.prototype.checkInstallation = function() {
             }
         });
     });
+    
+    // Check if mac addresses need to be defined
+    if (self.config[ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS] == true) { // use type coercition, because it's safer to have a false positive than a false negative
+        this.containers.forEach(function(container) {
+            if (container.ports.length>0) {
+                if (!container.macAddress) {
+                    errors.push("MAC Address is not defined for the container [" + container.name + "] (there should be one, as per the " + ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS + " property)");
+                } else if ((!typeof container.macAddress == "string") || !MAC_ADDRESS_REGEX.test(container.macAddress)) {
+                    errors.push("Could not recognize a valid MAC address for container [" + container.name + "] (found " + container.macAddress + ", expecting format 12:34:56:78:9A:BC)");
+                }
+            }
+        });
+    }
+    
     return errors;
 };
 
