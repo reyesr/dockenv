@@ -201,7 +201,12 @@ Manager.prototype.install = function() {
         var links = container.links.map(function(linkObj) { return linkObj.toString();});
         var volumes = container.volumes.map(function(volumeObj) { return volumeObj.toString();});
         self.verbose && console.log("Starting container " + container.name + " from " + imageRef);
-        dockerlib.docker.runDaemon(container.name, imageRef, container.imageTag, ports, links, volumes, container.runOptions);
+        var options = container.runOptions;
+        if (container.macAddress) {
+            options = (options||"") + " --mac-address=" + container.macAddress;
+        }
+        
+        dockerlib.docker.runDaemon(container.name, imageRef, container.imageTag, ports, links, volumes, options);
         this.verbose && console.log("Started successfully container [" + container.name + "] from " + container.image + ":" + container.imageTag);
     });
 }
