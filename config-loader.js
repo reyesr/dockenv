@@ -14,6 +14,24 @@ Loader.prototype.get = function() {
     return this.config;
 };
 
+function ensuresAllKeysAreLowercase(obj) {
+    Object.keys(obj).forEach(function(key) {
+        var lowercased = key.toLowerCase();
+        if (key != lowercased) {
+            if (obj[lowercased]!==undefined) {
+                throw new Error("Configuration key found twice (" + key + " and " + lowercased +")");
+            }
+            var value = obj[key];
+            delete obj[key];
+            obj[lowercased] = value;
+            key = lowercased;
+        }
+        if (misc.isObject(obj[key])) {
+            ensuresAllKeysAreLowercase(obj[key]);
+        }
+    });
+}
+
 /**
  * Loads a configuration file and mix it with the current configuration.
  * In other words, load() can be called several times, each successive configuration
@@ -32,24 +50,12 @@ Loader.prototype.load = function(filepath, throwIfInvalid) {
         throw new Error("Invalid file path: file " + filepath + " does not exist");
     }
     var obj = ini.parse(fs.readFileSync(filepath, 'utf-8'));
-    var result = {};
-    this.config = extend(true, result, this.config, obj);
+    if (obj) {
+        ensuresAllKeysAreLowercase(obj);
+        var result = {};
+        this.config = extend(true, result, this.config, obj);
+    }
     return this.config;
 };
-
-//Loader.prototype.getGlobalSection = function() {
-//    return misc.extractConfigSectionData(this.config);
-//};
-//
-//Loader.prototype.getSection = function() {
-//    return misc.extractConfigSectionData(this.config);
-//};
-//
-//Loader.prototype.getSectionNames = function() {
-//    var self = this;
-//    return Object.keys(this.config).filter(function(key) {
-//        return (typeof self.config[key] == "object");
-//    });
-//};
 
 module.exports.Loader = Loader;

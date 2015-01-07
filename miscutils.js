@@ -1,5 +1,9 @@
 var trim = require("trim");
 
+module.exports.isObject = function(obj) {
+    return typeof obj == "object" && !Array.isArray(obj);
+};
+
 module.exports.interpolate = function interpolate(str, data) {
     function interpolator(a,b) {
         var r = data[b];
