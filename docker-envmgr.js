@@ -9,7 +9,8 @@ var constraints  = new checker.ConfigChecker();
 constraints.addGlobalSection("exposedPortNeedMacAddress", []);
 
 var ENTRY_NAMES = {
-    EXPOSED_PORT_NEED_MAC_ADDRESS: "exposedPortNeedMacAddress",
+    LABEL: "label",
+    EXPOSED_PORT_NEED_MAC_ADDRESS: "exposing-containers-must-have-mac-address",
     REGISTRY_URL: "registry-url",
     AUTOCREATE_VOLUME_MOUNTPOINTS: "autocreate-volumes-mountpoints",
     REGISTRY_DOMAIN: "registry-domain",
@@ -21,10 +22,12 @@ var ENTRY_NAMES = {
     CONTAINER_PORTS: "ports",
     CONTAINER_LINKS: "links",
     CONTAINER_VOLUMES: "volumes",
-    CONTAINER_MAC_ADDRESS: "mac-address"
+    CONTAINER_MAC_ADDRESS: "mac-address",
+    CONTAINER_RUN_OPTIONS: "net"
 };
 
 constraints
+    .addGlobalSection(ENTRY_NAMES.LABEL, [checker.ConstraintEnum.OPTIONAL])
     .addGlobalSection(ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS, [checker.ConstraintEnum.OPTIONAL])
     .addGlobalSection(ENTRY_NAMES.REGISTRY_URL, [checker.ConstraintEnum.OPTIONAL])
     .addGlobalSection(ENTRY_NAMES.AUTOCREATE_VOLUME_MOUNTPOINTS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.BOOLEAN])
@@ -38,6 +41,7 @@ constraints
     .addSubSections(ENTRY_NAMES.CONTAINER_LINKS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
     .addSubSections(ENTRY_NAMES.CONTAINER_VOLUMES, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
     .addSubSections(ENTRY_NAMES.CONTAINER_MAC_ADDRESS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.STRING])
+    .addSubSections(ENTRY_NAMES.CONTAINER_RUN_OPTIONS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
     ;
 
 var MAC_ADDRESS_REGEX = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
@@ -94,14 +98,14 @@ Volume.prototype.toString = function() {
 }
 
 function Container(config, defaultName) {
-    this.image = config.image;
-    this.imageTag = config["image-tag"];
-    this.name = config.name || defaultName;
-    this.links = misc.toArray(config.links).map(function(desc) { return new Link(desc); })
-    this.ports = misc.toArray(config.ports).map(function(desc) { return new Port(desc); });
-    this.volumes = misc.toArray(config.volumes).map(function(desc) { return new Volume(desc);});
-    this.macAddress = config["mac-address"];
-    this.runOptions = config["run-options"];
+    this.image = config[ENTRY_NAMES.CONTAINER_IMAGE];
+    this.imageTag = config[ENTRY_NAMES.CONTAINER_IMAGE_TAG];
+    this.name = config[ENTRY_NAMES.CONTAINER_NAME] || defaultName;
+    this.links = misc.toArray(config[ENTRY_NAMES.CONTAINER_LINKS]).map(function(desc) { return new Link(desc); })
+    this.ports = misc.toArray(config[ENTRY_NAMES.CONTAINER_PORTS]).map(function(desc) { return new Port(desc); });
+    this.volumes = misc.toArray(config[ENTRY_NAMES.CONTAINER_VOLUMES]).map(function(desc) { return new Volume(desc);});
+    this.macAddress = config[ENTRY_NAMES.CONTAINER_MAC_ADDRESS];
+    this.runOptions = misc.toArray(config[ENTRY_NAMES.CONTAINER_RUN_OPTIONS]);
 }
 
 
@@ -130,9 +134,20 @@ Manager.prototype.getImageReference = function (image) {
     return url + image;
 };
 
+Manager.prototype.logIn = function() {
+    if (this.config[ENTRY_NAMES.REGISTRY_USER] && this.config[ENTRY_NAMES.REGISTRY_DOMAIN]) {
+        this.verbose && console.log("Login to " + this.config[ENTRY_NAMES.REGISTRY_DOMAIN] + " (user: " + this.config[ENTRY_NAMES.REGISTRY_USER] + ")");
+        try {
+            dockerlib.docker.login(this.config[ENTRY_NAMES.REGISTRY_USER], this.config[ENTRY_NAMES.REGISTRY_DOMAIN]);
+        } catch (e) {
+            throw new Error("Failed to log in to the registry. Please check the configuration and ensure you are already logged in.");
+        }
+    }
+};
+
 Manager.prototype.verify = function() {
     return constraints.verify(this.config);
-}
+};
 
 Manager.prototype.checkInstallation = function() {
     var errors = [];
@@ -201,9 +216,9 @@ Manager.prototype.install = function() {
         var links = container.links.map(function(linkObj) { return linkObj.toString();});
         var volumes = container.volumes.map(function(volumeObj) { return volumeObj.toString();});
         self.verbose && console.log("Starting container " + container.name + " from " + imageRef);
-        var options = container.runOptions;
+        var options = container.runOptions.join(" ");
         if (container.macAddress) {
-            options = (options||"") + " --mac-address=" + container.macAddress;
+            options += " --mac-address=" + container.macAddress;
         }
         
         dockerlib.docker.runDaemon(container.name, imageRef, container.imageTag, ports, links, volumes, options);
