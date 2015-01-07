@@ -198,7 +198,7 @@ Manager.prototype.checkInstallation = function() {
     
     // check if a container has a wrong linking
     this.containers.forEach(function(container) {
-        var currentName = container[ENTRY_NAMES.CONTAINER_NAME];
+        var currentName = container.name;
         container.links.forEach(function(link) {
             var linkedContainer = self.findContainer(link.container);
             if (!linkedContainer) {
@@ -209,6 +209,13 @@ Manager.prototype.checkInstallation = function() {
             }
         });
     });
+
+    this.containers.forEach(function(container) {
+        if (container.macAddress && container.getNetConfiguration() == "host") {
+            errors.push("Can't set mac-address on [" + container.name + "] with --net=host");
+        }
+    });
+
     
     return errors;
 };
