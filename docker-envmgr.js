@@ -23,7 +23,7 @@ var ENTRY_NAMES = {
     CONTAINER_LINKS: "links",
     CONTAINER_VOLUMES: "volumes",
     CONTAINER_MAC_ADDRESS: "mac-address",
-    CONTAINER_RUN_OPTIONS: "net"
+    CONTAINER_RUN_OPTIONS: "run-options"
 };
 
 constraints
@@ -108,6 +108,15 @@ function Container(config, defaultName) {
     this.runOptions = misc.toArray(config[ENTRY_NAMES.CONTAINER_RUN_OPTIONS]);
 }
 
+Container.prototype.getNetConfiguration = function() {
+    var net_re = /--net=([a-zA-Z\-0-9]+)/;
+    for (var i=0; i<this.runOptions.length; i+=1) {
+        var result = net_re.exec(this.runOptions[0]); 
+        if (result) {
+            return result[1];
+        }
+    }
+};
 
 /**
  * Installation is the sequence of following events:
@@ -125,6 +134,14 @@ function Manager(config, verbose) {
         return new Container(config[sectionName], sectionName);
     });
 }
+
+Manager.prototype.findContainer = function(name) {
+    
+    var filtered = this.containers.filter(function(cont) {
+        return cont.name == name;
+    });
+    return filtered.shift();
+};
 
 Manager.prototype.getImageReference = function (image) {
     var url = this.config["registry-domain"] || "";
@@ -178,6 +195,20 @@ Manager.prototype.checkInstallation = function() {
             }
         });
     }
+    
+    // check if a container has a wrong linking
+    this.containers.forEach(function(container) {
+        var currentName = container[ENTRY_NAMES.CONTAINER_NAME];
+        container.links.forEach(function(link) {
+            var linkedContainer = self.findContainer(link.container);
+            if (!linkedContainer) {
+                errors.push("Unknown container " + link.container + " linked by " + currentName);
+            } else if (linkedContainer.getNetConfiguration() == "host") {
+                errors.push("Container " + link.container + " is using the host network stack, and cannot " +
+                "be linked by " + currentName);
+            }
+        });
+    });
     
     return errors;
 };
