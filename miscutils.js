@@ -33,26 +33,6 @@ module.exports.extractConfigSectionNames = function(config) {
     })
 };
 
-module.exports.extractConfigSectionData = function extractConfigSectionData(config, sectionName) {
-    var isGlobal = sectionName === undefined;
-    var target = isGlobal ? config : config[sectionName];
-
-    if (typeof target != "object") {
-        return {};
-    }
-
-    var extracted = {};
-    Object.keys(target).forEach(function(key) {
-        //
-        // global sections do not contain object values, because those are
-        // subsections, so we only add them in subsections
-        if (typeof target[key] != "object" || !isGlobal) {
-            extracted[key] = target[key];
-        }
-    });
-    return extracted;
-};
-
 module.exports.toArray = function(element, separator) {
     if (Array.isArray(element)) {
         return element;

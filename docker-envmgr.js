@@ -1,15 +1,17 @@
-
 var checker = require("./config-checker"),
     dockerlib = require("dockerlib"),
+    extend = require("extend"),
     mkdirp = require("mkdirp"),
     fs = require("fs"),
-    misc = require("./miscutils");
+    misc = require("./miscutils"),
+    async = require("async");
 
 var constraints  = new checker.ConfigChecker();
 constraints.addGlobalSection("exposedPortNeedMacAddress", []);
 
 var ENTRY_NAMES = {
     LABEL: "label",
+    PAUSE: "pause",
     EXPOSED_PORT_NEED_MAC_ADDRESS: "exposing-containers-must-have-mac-address",
     REGISTRY_URL: "registry-url",
     AUTOCREATE_VOLUME_MOUNTPOINTS: "autocreate-volumes-mountpoints",
@@ -23,11 +25,13 @@ var ENTRY_NAMES = {
     CONTAINER_LINKS: "links",
     CONTAINER_VOLUMES: "volumes",
     CONTAINER_MAC_ADDRESS: "mac-address",
-    CONTAINER_RUN_OPTIONS: "run-options"
+    CONTAINER_RUN_OPTIONS: "run-options",
+    CONTAINER_PRIORITY: "priority"
 };
 
 constraints
     .addGlobalSection(ENTRY_NAMES.LABEL, [checker.ConstraintEnum.OPTIONAL])
+    .addGlobalSection(ENTRY_NAMES.PAUSE, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.INTEGER])
     .addGlobalSection(ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS, [checker.ConstraintEnum.OPTIONAL])
     .addGlobalSection(ENTRY_NAMES.REGISTRY_URL, [checker.ConstraintEnum.OPTIONAL])
     .addGlobalSection(ENTRY_NAMES.AUTOCREATE_VOLUME_MOUNTPOINTS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.BOOLEAN])
@@ -42,6 +46,7 @@ constraints
     .addSubSections(ENTRY_NAMES.CONTAINER_VOLUMES, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
     .addSubSections(ENTRY_NAMES.CONTAINER_MAC_ADDRESS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.STRING])
     .addSubSections(ENTRY_NAMES.CONTAINER_RUN_OPTIONS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
+    .addSubSections(ENTRY_NAMES.CONTAINER_PRIORITY, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.INTEGER])
     ;
 
 var MAC_ADDRESS_REGEX = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
@@ -106,6 +111,7 @@ function Container(config, defaultName) {
     this.volumes = misc.toArray(config[ENTRY_NAMES.CONTAINER_VOLUMES]).map(function(desc) { return new Volume(desc);});
     this.macAddress = config[ENTRY_NAMES.CONTAINER_MAC_ADDRESS];
     this.runOptions = misc.toArray(config[ENTRY_NAMES.CONTAINER_RUN_OPTIONS]);
+    this.priority = config[ENTRY_NAMES.CONTAINER_PRIORITY];
 }
 
 Container.prototype.getNetConfiguration = function() {
@@ -118,6 +124,42 @@ Container.prototype.getNetConfiguration = function() {
     }
 };
 
+Container.prototype.removeContainer = function(callback) {
+    try {
+        dockerlib.docker.removeContainer(this.name);
+        callback(null);
+    } catch (err) {
+        console.error("Warning: container " + this.name + " could not be removed (does it exist?)");
+        callback(null); // this always happens the first time a container is started, so we consider it safe
+    }
+};
+
+Container.prototype.startContainer = function(imageRef, verbose, callback) {
+    try {
+        var ports = this.ports.map(function (portObj) {
+            return portObj.toString();
+        });
+        var links = this.links.map(function (linkObj) {
+            return linkObj.toString();
+        });
+        var volumes = this.volumes.map(function (volumeObj) {
+            return volumeObj.toString();
+        });
+        verbose && console.log("Starting container " + this.name + " from " + imageRef);
+        var options = this.runOptions.join(" ");
+        if (this.macAddress) {
+            options += " --mac-address=" + this.macAddress;
+        }
+
+        dockerlib.docker.runDaemon(this.name, imageRef, this.imageTag, ports, links, volumes, options);
+        verbose && console.log("Started successfully container [" + this.name + "] from " + this.image + ":" + this.imageTag);
+        
+        callback(null);
+    } catch (err) {
+        callback(err);
+    }
+}
+
 /**
  * Installation is the sequence of following events:
  * - Pull the image:version
@@ -128,10 +170,20 @@ Container.prototype.getNetConfiguration = function() {
  */
 
 function Manager(config, verbose) {
-    this.config = config;
+    this.config = config = extend(true, {}, config);
+    this.checked = constraints.verify(this.config);
     this.verbose = !!verbose;
     this.containers =  misc.extractConfigSectionNames(config).map(function(sectionName) {
         return new Container(config[sectionName], sectionName);
+    });
+    this.containers.sort(function(a,b){
+        if (a.priority === undefined) {
+            return 1;
+        } else if (b.priority == undefined) {
+            return -1;
+        } else {
+            return a.priority-b.priority;
+        }
     });
 }
 
@@ -160,10 +212,6 @@ Manager.prototype.logIn = function() {
             throw new Error("Failed to log in to the registry. Please check the configuration and ensure you are already logged in.");
         }
     }
-};
-
-Manager.prototype.verify = function() {
-    return constraints.verify(this.config);
 };
 
 Manager.prototype.checkInstallation = function() {
@@ -220,8 +268,8 @@ Manager.prototype.checkInstallation = function() {
     return errors;
 };
 
-Manager.prototype.install = function() {
-
+Manager.prototype.install = function(callback) {
+    
     var errors = this.checkInstallation();
     if (errors.length>0) {
         errors.forEach(function(err) {
@@ -231,37 +279,25 @@ Manager.prototype.install = function() {
     }
 
     var self = this;
+    
     // First step: we pull all the images
     this.containers.forEach(function(container) {
         var imageRef = self.getImageReference(container.image);
-        if (self.verbose) {
-            console.log("Pulling image " + imageRef);
-        }
+        self.verbose &&console.log("Pulling image " + imageRef);
         dockerlib.docker.pull(imageRef, container.imageTag);
     });
 
-    // then we kill and start each of the containers
+    var pause = this.config[ENTRY_NAMES.PAUSE] || 100;
+    var tasks = [];
     this.containers.forEach(function(container) {
         var imageRef = self.getImageReference(container.image);
-        try {
-            self.verbose && console.log("Removing previous container " + container.name);
-            dockerlib.docker.removeContainer(container.name);
-        } catch (e) {
-            // ignore if the container was not found
-            console.error("Warning: container " + container.name + " could not be removed (does it exist?)");
-        }
-        var ports = container.ports.map(function(portObj) { return portObj.toString();});
-        var links = container.links.map(function(linkObj) { return linkObj.toString();});
-        var volumes = container.volumes.map(function(volumeObj) { return volumeObj.toString();});
-        self.verbose && console.log("Starting container " + container.name + " from " + imageRef);
-        var options = container.runOptions.join(" ");
-        if (container.macAddress) {
-            options += " --mac-address=" + container.macAddress;
-        }
-        
-        dockerlib.docker.runDaemon(container.name, imageRef, container.imageTag, ports, links, volumes, options);
-        this.verbose && console.log("Started successfully container [" + container.name + "] from " + container.image + ":" + container.imageTag);
+        tasks.push(container.removeContainer.bind(container));
+        tasks.push(function(callback){ setTimeout(callback, pause); });
+        tasks.push(container.startContainer.bind(container, imageRef, self.verbose));
     });
-}
+    
+    async.waterfall(tasks, callback);
+    
+};
 
 module.exports.DockerEnvironmentManager = Manager;

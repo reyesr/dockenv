@@ -163,16 +163,16 @@ function checkConstraint(object, key, constraints, subsectionName) {
     return null;
 }
 
-function checkConstraints(result, configObject, constraints, subsection) {
+function checkConstraints(result, configObject, keys, constraints, subsection) {
 
-    Object.keys(constraints).forEach(function(key) {
+    keys.forEach((function(key) {
         var checked = checkConstraint(configObject, key, constraints[key], subsection);
         if (checked) { // every invalid check from an explicit constraint if an error
             result.errors.push(checked);
         }
-    });
+    }));
 
-    Object.keys(configObject).forEach(function(key) {
+    keys.forEach(function(key) {
         if (constraints[key] === undefined) {
             result.warnings.push(MessageEnum.mkMessage(MessageEnum.UNKNOWN_KEY, key, subsection));
         }
@@ -190,10 +190,11 @@ ConfigChecker.prototype.verify = function(config) {
     }
 
     // Check the global section
-    var globalConfigObject = misc.extractConfigSectionData(config);
+    var globalSectionKeys = Object.keys(config).filter(function(value) {
+        return typeof config[value] != "object";
+    });
     var globalConstraints = extend(true, {}, this.constraints[SectionTypeEnum.GLOBAL] || {}, this.constraints[SectionTypeEnum.ALL] || {});
-    checkConstraints(result, globalConfigObject, globalConstraints);
-
+    checkConstraints(result, config, globalSectionKeys, globalConstraints);
 
     var subSectionNames = Object.keys(config).filter(function(value) {
         return typeof config[value] == "object";
@@ -201,9 +202,9 @@ ConfigChecker.prototype.verify = function(config) {
 
     var self = this;
     subSectionNames.forEach(function(subSectionName) {
-        var localConfigObject = misc.extractConfigSectionData(config, subSectionName);
+        var localConfigObject = config[subSectionName];
         var constraintSet = extend(true, {}, self.constraints[subSectionName] || {}, self.constraints[SectionTypeEnum.SUBSECTIONS] || {}, self.constraints[SectionTypeEnum.ALL] || {});
-        checkConstraints(result, localConfigObject, constraintSet, subSectionName);
+        checkConstraints(result, localConfigObject, Object.keys(localConfigObject), constraintSet, subSectionName);
     });
 
     return result;

@@ -2,6 +2,8 @@ dockenv
 =======
 
 dockenv reproducibly pulls and sets up containers using a configuration file.
+It enforces correctness for its configuration file and for the container set by verifying that
+no links or volumes are missing.
 
 Short summary
 =============
