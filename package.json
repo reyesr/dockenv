@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "rodrigo <reyes.rr@gmail.com> (https://github.com/reyesr)",
-  "license": "ISC",
+  "license": "Apache 2.0",
   "bin": {
     "dockenv": "bin/dockenv"
   },
