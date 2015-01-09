@@ -285,7 +285,7 @@ Manager.prototype.install = function(callback) {
         dockerlib.docker.pull(imageRef, container.imageTag);
     });
     
-    var pause = this.config[ENTRY_NAMES.PAUSE]!==undefined?this.config[ENTRY_NAMES.PAUSE]:200; // not sure about this default value
+    var pause = this.config[ENTRY_NAMES.PAUSE]!==undefined?this.config[ENTRY_NAMES.PAUSE]:1000; // not sure about this default value
     var tasks = [];
     this.containers.forEach(function(container) {
         var imageRef = self.getImageReference(container.image);

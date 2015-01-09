@@ -4,6 +4,10 @@ dockenv reproducibly pulls and sets up containers using a configuration file.
 It enforces correctness for its configuration file and for the set of containers by verifying that
 no links or volumes are missing (among other things).
 
+Note that dockenv does not build, its sole purpose is the deployment of a configuration of containers on
+a host, typically on production, preproduction, or development environement. It assumes you already have
+a build system that builds the images and pushes them on a public or private registry.
+
 # Short summary
 
 Feed dockenv with a simple configuration file (a classic ini):
@@ -101,7 +105,7 @@ environment).
 ### label
 
 A string displayed at the beginning of the execution. You can typically put there any meaningful information relative
-to this environment.
+to this environment. If the label property is not set, nothing is printed.
 
     label=Environment MyApp 1.3 for customer XXX
 
@@ -109,10 +113,10 @@ to this environment.
 
 As of Docker 1.4.x, you may still experience issues such as #9665 #3968, which are basically race-condition errors
 happening when a container is started immediatly after a container with the same name is removed. Adding a pause
-prevent this issue to happen. The default value is 200ms, but your mileage may vary, and you may need to set it
-to 2 ou 3 seconds. The value is expected to be an integer, in milliseconds.
+prevent this issue to happen. The default value is 1000ms, but your mileage may vary, and you may need to set it
+to 2 ou 3 seconds, or 500ms, or less. The value is expected to be an integer, in milliseconds.
 
-    pause=400
+    pause=1500
     
 Once this issue is fixed in Docker or in the kernel, you may want to set pause=0.
 
