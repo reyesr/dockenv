@@ -13,7 +13,6 @@ var ENTRY_NAMES = {
     LABEL: "label",
     PAUSE: "pause",
     EXPOSED_PORT_NEED_MAC_ADDRESS: "exposing-containers-must-have-mac-address",
-    REGISTRY_URL: "registry-url",
     AUTOCREATE_VOLUME_MOUNTPOINTS: "autocreate-volumes-mountpoints",
     REGISTRY_DOMAIN: "registry-domain",
     REGISTRY_USER: "registry-user",
@@ -33,7 +32,6 @@ constraints
     .addGlobalSection(ENTRY_NAMES.LABEL, [checker.ConstraintEnum.OPTIONAL])
     .addGlobalSection(ENTRY_NAMES.PAUSE, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.INTEGER])
     .addGlobalSection(ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS, [checker.ConstraintEnum.OPTIONAL])
-    .addGlobalSection(ENTRY_NAMES.REGISTRY_URL, [checker.ConstraintEnum.OPTIONAL])
     .addGlobalSection(ENTRY_NAMES.AUTOCREATE_VOLUME_MOUNTPOINTS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.BOOLEAN])
     .addGlobalSection(ENTRY_NAMES.REGISTRY_DOMAIN, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.STRING])
     .addGlobalSection(ENTRY_NAMES.REGISTRY_USER, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.STRING])
@@ -158,7 +156,7 @@ Container.prototype.startContainer = function(imageRef, verbose, callback) {
     } catch (err) {
         callback(err);
     }
-}
+};
 
 /**
  * Installation is the sequence of following events:
@@ -277,7 +275,7 @@ Manager.prototype.install = function(callback) {
         });
         throw new Error(errors.length + " configuration error(s) were found.");
     }
-
+    
     var self = this;
     
     // First step: we pull all the images
@@ -286,8 +284,8 @@ Manager.prototype.install = function(callback) {
         self.verbose &&console.log("Pulling image " + imageRef);
         dockerlib.docker.pull(imageRef, container.imageTag);
     });
-
-    var pause = this.config[ENTRY_NAMES.PAUSE] || 100;
+    
+    var pause = this.config[ENTRY_NAMES.PAUSE]!==undefined?this.config[ENTRY_NAMES.PAUSE]:200; // not sure about this default value
     var tasks = [];
     this.containers.forEach(function(container) {
         var imageRef = self.getImageReference(container.image);
@@ -297,7 +295,6 @@ Manager.prototype.install = function(callback) {
     });
     
     async.waterfall(tasks, callback);
-    
 };
 
 module.exports.DockerEnvironmentManager = Manager;
