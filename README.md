@@ -23,6 +23,7 @@ Feed dockenv with a simple configuration file (a classic ini):
     image = example/mongo
     image-tag=v2
     volumes = $HOME/example/mongo/:/DATA
+    priority=1
 
     [example-webapp]
     image = example/my-fine-webapp
@@ -32,6 +33,7 @@ Feed dockenv with a simple configuration file (a classic ini):
     links=mongo:mongo
     ports[]=80:80
     ports[]=443:443
+    priority=2
 
 This tells dockenv to do the following:
 
@@ -79,25 +81,25 @@ For instance
 will do the following:
 
 - Search for a ~/.dockenv.ini file, and load it if it exists
-- Load the ./environment-3f90ef.ini file. Overwrites and value defined in the in ~/.dockenv.ini.
-- Ensures consistency of the configuration
+- Load the ./environment-3f90ef.ini file. Overwrites any value defined in the in ~/.dockenv.ini.
+- Ensure consistency of the configuration
 - Display any warning detected
 - Install this environment
 
 # The Ini configuration files
  
-The configuration file used by dockenv are standard ini file, with properties/values definitions
-where the global section defines the parameters that are not specific to any container. Container definitions
+The configuration file used by dockenv are standard ini file, with properties definitions.
+The global section defines the parameters that are not specific to any container. Container definitions
 are expected in their own section, typically named after the container.
 
-Note that the keys are not case-sensitive. During the verification step, unknown settings raise a warning (if the 
--w/--warns options is set, it stops the execution). 
+Note that the property keys are not case-sensitive. During the verification step, unknown settings raise a warning (if the
+-w/--warns options is set, it also stops the execution).
 
 ## Local configuration file
 
 If a ~/.dockenv.ini file exists, dockenv tries to load it. All the properties defined in this file are used
 as default values for the configuration file. It can contain definitions for the global settings, but also for
-containers, in case you need to have specific configuration (typically a mac address specific to the network
+containers, in case you need to have a specific configuration for them (typically a mac address specific to the network
 environment).
 
 ## Global settings
@@ -118,7 +120,7 @@ to 2 ou 3 seconds, or 500ms, or less. The value is expected to be an integer, in
 
     pause=1500
     
-Once this issue is fixed in Docker or in the kernel, you may want to set pause=0.
+Once this issue is definitely fixed, you may want to set pause=0.
 
 ### exposing-containers-must-have-mac-address
 
@@ -131,7 +133,7 @@ in the container configuration. The default is false. Most people won't need thi
 
 ### autocreate-volumes-mountpoints
 
-When if option is enabled, dockenv automatically creates the host directory that are referenced in the --volume options
+When this option is enabled, dockenv automatically creates the host directories that are referenced in the --volume options
 if they do not exist. Default value is 'false'. If this option is not enabled, and the host directory does not exist, 
 an error is raised, and the environment installation is cancelled.
 
@@ -140,7 +142,9 @@ an error is raised, and the environment installation is cancelled.
 ### registry-domain
 
 If you use a private registry, you need to specify its domain. That's what this option is for. Image names defined 
-by the containers are preprended with this domain.
+by the containers are preprended with this domain. If a registry-domain is defined, dockenv tries to log in, but
+that's only for verification purpose, you have to be already logged to this registry with your host user or it
+will likely fail.
 
     registry-domain=registry.example.com
 
@@ -152,11 +156,11 @@ If you use a private registry, this options defines the user name to use for the
     
 ## Container settings
 
-Each section of the ini file defines a container.
+Each section of the ini file defines a container. You need to define at least the image and image-tag properties.
 
 ### image
 
-This is the image name used to create the container and pull it from the registry.
+This name of the image used to create the container. Dockenv tries to pull all the image:image-tag of each containers before installing anything.
 Mandatory.
 
     image=my-company/my-image
