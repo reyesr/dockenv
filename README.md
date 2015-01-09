@@ -10,12 +10,12 @@ a build system that creates the images and pushes them on a public or private re
 
 # Short summary
 
-Feed dockenv with a simple configuration file (a classic ini):
+Feed dockenv with a simple configuration file (a somewhat classic ini):
 
 
     label=My Fine Application
 
-    # optionnally define a private registry
+    # optionally define a private registry
     registry-domain=my-registry.example.com
     registry-user=myself
 
