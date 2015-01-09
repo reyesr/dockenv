@@ -5,8 +5,8 @@ It enforces correctness for its configuration file and for the set of containers
 no links or volumes are missing (among other things).
 
 Note that dockenv does not build, its sole purpose is the deployment of a configuration of containers on
-a host, typically on production, preproduction, or development environement. It assumes you already have
-a build system that builds the images and pushes them on a public or private registry.
+a host, typically on production, preproduction, or development environements. It assumes you already have
+a build system that creates the images and pushes them on a public or private registry.
 
 # Short summary
 
