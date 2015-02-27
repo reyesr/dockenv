@@ -2,6 +2,7 @@ var checker = require("./config-checker"),
     dockerlib = require("dockerlib"),
     extend = require("extend"),
     mkdirp = require("mkdirp"),
+    shell = require("shelljs"),
     fs = require("fs"),
     misc = require("./miscutils"),
     async = require("async");
@@ -194,6 +195,10 @@ Manager.prototype.findContainer = function(name) {
 };
 
 Manager.prototype.getImageReference = function (image) {
+    if (image.substr(0,1)=="<" && image.substr(image.length-1,1)==">") {
+        return image.substr(1, image.length-2);
+    }
+
     var url = this.config["registry-domain"] || "";
     if (url.length>0 && url[url.length-1] != '/') {
         url += "/";
@@ -222,6 +227,7 @@ Manager.prototype.checkInstallation = function() {
             if (fs.existsSync(volumeObject.hostMountPoint) == false) {
                 if (self.config["autocreate-volumes-mountpoints"] === true) {
                     mkdirp.sync(volumeObject.hostMountPoint);
+                    shell.chmod('a+rwx', volumeObject.hostMountPoint);
                 } else {
                     errors.push("Host mountpoint " + volumeObject.hostMountPoint + " for " + container.name + " does not exist");
                 }
