@@ -14,6 +14,7 @@ var ENTRY_NAMES = {
     LABEL: "label",
     PAUSE: "pause",
     EXPOSED_PORT_NEED_MAC_ADDRESS: "exposing-containers-must-have-mac-address",
+    EXPOSED_PORT_NEED_MAC_ADDRESS_EXCEPT: "exposing-containers-must-have-mac-address-except",
     AUTOCREATE_VOLUME_MOUNTPOINTS: "autocreate-volumes-mountpoints",
     REGISTRY_DOMAIN: "registry-domain",
     REGISTRY_USER: "registry-user",
@@ -33,6 +34,7 @@ constraints
     .addGlobalSection(ENTRY_NAMES.LABEL, [checker.ConstraintEnum.OPTIONAL])
     .addGlobalSection(ENTRY_NAMES.PAUSE, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.INTEGER])
     .addGlobalSection(ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS, [checker.ConstraintEnum.OPTIONAL])
+    .addGlobalSection(ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS_EXCEPT, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.TYPE.ARRAY])
     .addGlobalSection(ENTRY_NAMES.AUTOCREATE_VOLUME_MOUNTPOINTS, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.BOOLEAN])
     .addGlobalSection(ENTRY_NAMES.REGISTRY_DOMAIN, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.STRING])
     .addGlobalSection(ENTRY_NAMES.REGISTRY_USER, [checker.ConstraintEnum.OPTIONAL, checker.ConstraintEnum.STRING])
@@ -79,7 +81,7 @@ function Port(descriptor) {
     this.containerPort = split.length==3?split[2]:split[1];
 }
 Port.prototype.toString = function() {
-    return (this.hostPort?this.hostPort+":" : "") + this.ip + ":" + this.containerPort;
+    return (this.ip?this.ip + ":" : "") + (this.hostPort?this.hostPort+":" : "") + this.containerPort;
 }
 
 function Volume(descriptor) {
@@ -168,10 +170,13 @@ Container.prototype.startContainer = function(imageRef, verbose, callback) {
  * @param globalConfig
  */
 
-function Manager(config, verbose) {
+function Manager(config, options) {
+
     this.config = config = extend(true, {}, config);
     this.checked = constraints.verify(this.config);
-    this.verbose = !!verbose;
+    this.verbose = !!options.verbose;
+    this.noPulling = !!options["no-pulling"];
+
     this.containers =  misc.extractConfigSectionNames(config).map(function(sectionName) {
         return new Container(config[sectionName], sectionName);
     });
@@ -237,12 +242,25 @@ Manager.prototype.checkInstallation = function() {
     
     // Check if mac addresses need to be defined
     if (self.config[ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS] == true) { // use type coercition, because it's safer to have a false positive than a false negative
+
+        function isMacAddressException(ip) {
+            var allowed = self.config[ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS_EXCEPT] || [];
+            return allowed.indexOf(ip)>=0;
+        }
+
         this.containers.forEach(function(container) {
             if (container.ports.length>0) {
-                if (!container.macAddress) {
-                    errors.push("MAC Address is not defined for the container [" + container.name + "] (there should be one, as per the " + ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS + " property)");
-                } else if ((!typeof container.macAddress == "string") || !MAC_ADDRESS_REGEX.test(container.macAddress)) {
-                    errors.push("Could not recognize a valid MAC address for container [" + container.name + "] (found " + container.macAddress + ", expecting format 12:34:56:78:9A:BC)");
+
+                var disallowedPortIps = container.ports.filter(function(port) {
+                    return !isMacAddressException(port.ip);
+                });
+
+                if (disallowedPortIps.length>0) {
+                    if (!container.macAddress) {
+                        errors.push("MAC Address is not defined for the container [" + container.name + "] (there should be one, as per the " + ENTRY_NAMES.EXPOSED_PORT_NEED_MAC_ADDRESS + " property)");
+                    } else if ((!typeof container.macAddress == "string") || !MAC_ADDRESS_REGEX.test(container.macAddress)) {
+                        errors.push("Could not recognize a valid MAC address for container [" + container.name + "] (found " + container.macAddress + ", expecting format 12:34:56:78:9A:BC)");
+                    }
                 }
             }
         });
@@ -268,7 +286,6 @@ Manager.prototype.checkInstallation = function() {
         }
     });
 
-    
     return errors;
 };
 
@@ -283,13 +300,15 @@ Manager.prototype.install = function(callback) {
     }
     
     var self = this;
-    
-    // First step: we pull all the images
-    this.containers.forEach(function(container) {
-        var imageRef = self.getImageReference(container.image);
-        self.verbose &&console.log("Pulling image " + imageRef);
-        dockerlib.docker.pull(imageRef, container.imageTag);
-    });
+
+    if (!this.noPulling) {
+        // First step: we pull all the images
+        this.containers.forEach(function (container) {
+            var imageRef = self.getImageReference(container.image);
+            self.verbose && console.log("Pulling image " + imageRef);
+            dockerlib.docker.pull(imageRef, container.imageTag);
+        });
+    }
     
     var pause = this.config[ENTRY_NAMES.PAUSE]!==undefined?this.config[ENTRY_NAMES.PAUSE]:1000; // not sure about this default value
     var tasks = [];

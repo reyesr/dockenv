@@ -197,7 +197,7 @@ ConfigChecker.prototype.verify = function(config) {
     checkConstraints(result, config, globalSectionKeys, globalConstraints);
 
     var subSectionNames = Object.keys(config).filter(function(value) {
-        return typeof config[value] == "object";
+        return typeof config[value] == "object" && !Array.isArray(config[value]);
     });
 
     var self = this;

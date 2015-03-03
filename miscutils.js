@@ -29,7 +29,7 @@ module.exports.interpolatePath = function(path) {
 
 module.exports.extractConfigSectionNames = function(config) {
     return Object.keys(config).filter(function(key) {
-        return typeof config[key] == "object";
+        return typeof config[key] == "object" && !Array.isArray(config[key]);
     })
 };
 

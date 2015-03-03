@@ -12,6 +12,7 @@ var cmdLineParser = optimist
         .boolean("extra-verbose").option("extra-verbose", {describe:"Extra verbose mode (really!)", default: false})
         .option("w", { alias: "warns", default: false, describe: "Treat warnings as errors"}).boolean("w")
         .option("s", { alias: "stacktrace", default: false, describe: "Eventually display the stacktrace"}).boolean("s")
+        .boolean("no-pulling").option("no-pulling", { alias: "P", default: false, describe: "Disable the image pulling step"}).boolean("s")
         .check(function(argv) {
             if (argv._.length != 1) {
                 throw new Error("Expecting one argument");
@@ -49,7 +50,7 @@ if (config.label) {
     console.log("Environment: " + config.label);
 }
 
-var manager = new dockermgr.DockerEnvironmentManager(config, options.verbose);
+var manager = new dockermgr.DockerEnvironmentManager(config, options);
 dockerlib.verbose = options["extra-verbose"]
 manager.logIn();
 
