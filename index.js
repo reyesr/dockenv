@@ -6,6 +6,7 @@ var dockerlib = require("dockerlib"),
     fs =require("fs"),
     misc = require("./miscutils");
 
+var packageJson = require("./package.json");
 
 var cmdLineParser = optimist
         .option("v", { alias: "verbose", default: false, describe: "Verbose mode" }).boolean("v")
@@ -23,7 +24,7 @@ var cmdLineParser = optimist
                 throw new Error("Configuration file '"+argv._[0]+"' does not exist");
             }
         })
-        .usage("Usage: $0 [options] config-file")
+        .usage("Usage: $0 [options] config-file\nInstalled version " + packageJson.version);
     ;
 var options = cmdLineParser.argv
 
