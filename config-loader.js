@@ -41,7 +41,7 @@ function ensuresAllKeysAreLowercase(obj) {
  * @returns {{}|*}
  */
 Loader.prototype.load = function(filepath, throwIfInvalid) {
-    filepath = misc.interpolate(filepath, { 'HOME': misc.getUserHome() });
+    filepath = misc.interpolatePath(filepath);
     if (filepath.substr(0,1) == '~') {
         filepath = misc.getUserHome() + filepath.substring(1);
     }
@@ -53,9 +53,39 @@ Loader.prototype.load = function(filepath, throwIfInvalid) {
     if (obj) {
         ensuresAllKeysAreLowercase(obj);
         var result = {};
-        this.config = extend(true, result, this.config, obj);
+        this.extendConfig(this.config, obj);
+        // this.config = extend(true, result, this.config, obj);
     }
     return this.config;
 };
+
+function overwriteOrPush(target, extender, propertyName) {
+
+    if (target[propertyName] !== undefined && extender[propertyName] !== undefined && Array.isArray(target[propertyName]) || Array.isArray(extender[propertyName])) {
+        target[propertyName] = [].concat(target[propertyName]).concat(extender[propertyName]);
+    } else if (extender[propertyName] !== undefined) {
+        target[propertyName] = extender[propertyName];
+    }
+}
+
+Loader.prototype.extendConfig = function(obj, extensionObject) {
+
+    function extendSection(target, extender) {
+        Object.keys(extender).forEach(function(key) {
+            overwriteOrPush(target, extender, key);
+        });
+    }
+
+    Object.keys(extensionObject).forEach(function(key) {
+        var orgProp = obj[key];
+        if (typeof orgProp == "object" && !Array.isArray(orgProp)) {
+            // real object, so it's a section
+            extendSection(orgProp, extensionObject[key]);
+        } else {
+            overwriteOrPush(obj, extensionObject, key);
+        }
+    });
+};
+
 
 module.exports.Loader = Loader;

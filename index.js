@@ -39,14 +39,16 @@ process.on('uncaughtException', function (err) {
 
 var configurationFile = options._[0];
 
-var defaultLocalFile = "$HOME/.dockenv.ini";
-if (options.verbose && fs.existsSync(defaultLocalFile)) {
-    console.log("Using local configuration file '" + defaultLocalFile + "' as basis");
-}
+var defaultLocalFile = misc.interpolatePath("$HOME/.dockenv.ini");
 
 var configLoader = new cfg.Loader();
-configLoader.load(defaultLocalFile);
 var config = configLoader.load(configurationFile);
+
+if (fs.existsSync(defaultLocalFile)) {
+    console.log("Using configuration file '" + defaultLocalFile + "' for local settings.");
+    config = configLoader.load(defaultLocalFile);
+}
+
 if (config.label) {
     console.log("Environment: " + config.label);
 }
